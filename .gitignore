@@ -1,0 +1,32 @@
+# Environment variables
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Streamlit
+.streamlit/
+
+# VS Code
+.vscode/
+
+# FAISS Vector Store
+vector_store/
+
+# Generated PDFs
+data/*.pdf
+
+# Logs
+*.log
+
+# OS Files
+.DS_Store
+Thumbs.db
+vector_store_test/
