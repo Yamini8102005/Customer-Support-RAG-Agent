@@ -7,4 +7,5 @@ faiss-cpu
 pypdf==4.2.0
 python-dotenv==1.0.1
 reportlab==4.2.0
-sentence-transformers
+numpy
+Pillow>=11.0.0
