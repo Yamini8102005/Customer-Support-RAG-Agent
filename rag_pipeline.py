@@ -10,7 +10,7 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_community.embeddings import HuggingFaceEmbeddings
 
 # Use Google API-based embeddings when available; otherwise fall back to a local model.
-EMBEDDING_MODEL_NAME = os.getenv("GEMINI_EMBEDDING_MODEL", "models/text-embedding-004")
+EMBEDDING_MODEL_NAME = os.getenv("GEMINI_EMBEDDING_MODEL", "text-embedding-004")
 LLM_MODEL_NAME = os.getenv("GEMINI_LLM_MODEL", "gemini-2.0-flash")
 LOCAL_EMBEDDING_MODEL = os.getenv("LOCAL_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
 EMBEDDING_BACKEND = os.getenv("EMBEDDING_BACKEND", "auto")
