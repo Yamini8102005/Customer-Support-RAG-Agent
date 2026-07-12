@@ -17,11 +17,11 @@ env/
 # VS Code
 .vscode/
 
-# FAISS Vector Store
-vector_store/
+# FAISS Vector Store (Committed to speed up app loading)
+# vector_store/
 
-# Generated PDFs
-data/*.pdf
+# Generated PDFs (Committed to speed up app loading)
+# data/*.pdf
 
 # Logs
 *.log
