@@ -13,6 +13,32 @@ The application is deployed on Render.
 
 ---
 
+## 🏗️ Architecture Overview
+
+The system operates as a Retrieval-Augmented Generation (RAG) agent that matches user queries with relevant sections of a local GigaCorp product handbook PDF and formats responses via a Gemini LLM.
+
+```mermaid
+graph TD
+    A[User Input / Query] --> B{History-Aware Retriever}
+    C[Chat History] --> B
+    B -->|Contextualized Query| D[Google Generative AI Embeddings]
+    D -->|Query Embedding| E[FAISS Similarity Search]
+    F[(data/gigacorp_faq.pdf)] -->|Inception & Split| G[(vector_store/ FAISS Index)]
+    G -->|Retrieve Top Context| E
+    E -->|Context Chunks| H[LLM Answer Generator]
+    A -->|Original Input| H
+    H -->|Gemini 3.1 Flash Lite| I[Formatted Answer + Sources Output]
+```
+
+1. **Document Loading & Splitting**: On the first start, `generate_faq_pdf.py` creates `data/gigacorp_faq.pdf`. The document loader `PyPDFLoader` parses the pages, and `RecursiveCharacterTextSplitter` breaks them down into 500-character chunks with 50-character overlap.
+2. **Indexing & Vector DB**: Standardized embeddings are generated using `models/gemini-embedding-001` via `GoogleGenerativeAIEmbeddings` (outputting 3072 dimensions) and cached locally in a `FAISS` vector store.
+3. **Conversational Memory**: A `create_history_aware_retriever` combines previous conversation turns with the current question to rewrite vague inputs (e.g., "how much does it cost?") into standalone, context-aware retrieval queries.
+4. **Retrieval & Verification**: Chunks matching the rewritten query are retrieved. The system programmatically double-checks the FAISS index dimension against the active embeddings model dimension. If a mismatch occurs, it safely wipes the old store and compiles a fresh one.
+5. **Generation**: The context chunks, chat history, and prompt are sent to `ChatGoogleGenerativeAI` utilizing the `gemini-3.1-flash-lite` model. The model generates a persona-aligned response strictly restricted to the mock FAQ content.
+6. **Citations extraction**: The metadata from the returned context chunks is mapped directly beneath the assistant's response to output file and page citations dynamically.
+
+---
+
 ## 📂 Project Structure
 
 ```text
@@ -58,7 +84,13 @@ cp .env.example .env
 ```
 Open `.env` and fill in your Gemini API key:
 ```env
-GEMINI_API_KEY=AIzaSy...
+# Google Gemini API Key (either variable is supported)
+GEMINI_API_KEY=your_api_key_here
+# GOOGLE_API_KEY=your_api_key_here
+
+# Optional: Override default models (defaults to working gemini-3.1-flash-lite)
+# GEMINI_LLM_MODEL=gemini-3.1-flash-lite
+# GEMINI_EMBEDDING_MODEL=models/gemini-embedding-001
 ```
 
 ### 2. Install Dependencies

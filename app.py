@@ -185,15 +185,6 @@ if len(st.session_state.messages) == 0:
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
-        
-        # Display Citations if they exist for this message
-        if message["role"] == "assistant" and "citations" in message and message["citations"]:
-            with st.expander("📚 View Cited Sources", expanded=False):
-                for idx, citation in enumerate(message["citations"]):
-                    st.markdown(
-                        f"**Source {idx+1}:** {citation['source']} (Page {citation['page']})\n"
-                        f"_{citation['text'].strip()}_"
-                    )
 
 # 3. Capture User Input
 if user_input := st.chat_input("Type your question here..."):
@@ -237,37 +228,47 @@ if user_input := st.chat_input("Type your question here..."):
             answer = response["answer"]
             context_docs = response.get("context", [])
             
-            # Render answer
-            st.markdown(answer)
-            
-            # Extract and compile citations from metadata (deduplicating by page)
+            # Extract and compile citations from metadata
             citations = []
             seen_pages = set()
-            for doc in context_docs:
-                src_file = os.path.basename(doc.metadata.get("source", "gigacorp_faq.pdf"))
-                # PyPDFLoader returns page numbers 0-indexed; add 1 for user-facing count
-                page_num = doc.metadata.get("page", 0) + 1
-                page_key = (src_file, page_num)
-                if page_key not in seen_pages:
-                    seen_pages.add(page_key)
-                    citations.append({
-                        "source": src_file,
-                        "page": page_num,
-                        "text": doc.page_content
-                    })
+            sources_md = ""
             
-            # Render Citations
-            if citations:
-                with st.expander("📚 View Cited Sources", expanded=False):
-                    for idx, citation in enumerate(citations):
-                        st.markdown(
-                            f"**Source {idx+1}:** {citation['source']} (Page {citation['page']})\n"
-                            f"_{citation['text'].strip()}_"
-                        )
+            if context_docs:
+                sources_md += "\n\n**Sources:**\n"
+                for doc in context_docs:
+                    src_file = os.path.basename(doc.metadata.get("source", "gigacorp_faq.pdf"))
+                    page_num = doc.metadata.get("page", 0) + 1
+                    page_key = (src_file, page_num)
+                    
+                    if page_key not in seen_pages:
+                        seen_pages.add(page_key)
+                        citations.append({
+                            "source": src_file,
+                            "page": page_num,
+                            "text": doc.page_content
+                        })
+                    
+                    # Extract a clean context preview or section title
+                    lines = [line.strip() for line in doc.page_content.split("\n") if line.strip()]
+                    first_line = lines[0] if lines else ""
+                    # Clean up formatting characters
+                    first_line = first_line.replace("#", "").replace("•", "").strip()
+                    if len(first_line) > 100:
+                        first_line = first_line[:97] + "..."
+                    if not first_line:
+                        first_line = "General manual excerpt"
+                        
+                    sources_md += f"- {src_file} (Page {page_num})\n  - Retrieved context: {first_line}\n"
             
-            # Store assistant response and citations in session state
+            # Combine answer and explicitly formatted sources
+            full_display_content = answer + sources_md
+            
+            # Render answer and sources in the main message
+            st.markdown(full_display_content)
+            
+            # Store assistant response in session state
             st.session_state.messages.append({
                 "role": "assistant",
-                "content": answer,
+                "content": full_display_content,
                 "citations": citations
             })

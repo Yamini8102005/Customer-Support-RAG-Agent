@@ -262,6 +262,38 @@ def generate_pdf():
         body_style
     ))
 
+    story.append(PageBreak())
+
+    # PAGE 6: OPERATIONS, SERVICE TIERS & BUSINESS HOURS
+    story.append(Paragraph("Section 6: Support Operations & Service Tiers", h1_style))
+    story.append(Paragraph(
+        "To ensure all GigaCorp clients receive appropriate technical coverage, we operate under defined business hours "
+        "and structured service tiers based on customer product enrollment.",
+        body_style
+    ))
+    story.append(Spacer(1, 10))
+
+    story.append(Paragraph("Section 6.1: Business Hours", h2_style))
+    story.append(Paragraph(
+        "• Premium (GigaCare) and Enterprise support tiers are operational 24/7/365.\n"
+        "• Basic support services (telephone and live chat) are available from 8:00 AM to 8:00 PM EST, "
+        "Monday through Friday, and 9:00 AM to 5:00 PM EST on Saturdays and Sundays. Self-service portal access "
+        "and email ticket submission remain accessible 24/7.",
+        body_style
+    ))
+    story.append(Spacer(1, 10))
+
+    story.append(Paragraph("Section 6.2: Service Tiers", h2_style))
+    story.append(Paragraph(
+        "• Basic Tier: Automatically included with all GigaCorp device purchases. Includes standard email, "
+        "in-app text chat, and standard business-hours phone lines.\n"
+        "• Premium (GigaCare) Tier: Included with GigaCare Protection subscriptions. Provides 24/7 priority hotline "
+        "access, dedicated customer success reps, and direct hardware replacement dispatch.\n"
+        "• Enterprise Tier: Configured for corporate accounts deploying GigaOffice hardware. Includes a dedicated "
+        "support engineer contact, custom portal integration, and a guaranteed 1-hour SLA response time.",
+        body_style
+    ))
+
     # Build the document
     doc.build(story)
     print(f"PDF generated successfully at {pdf_path}")
