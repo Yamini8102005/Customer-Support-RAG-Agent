@@ -4,6 +4,15 @@ A self-contained, modular Customer Support RAG Agent designed for **GigaCorp**. 
 
 ---
 
+## 🚀 Live Demo
+
+Try the deployed application:
+https://customer-support-rag-agent.onrender.com
+
+The application is deployed on Render.
+
+---
+
 ## 📂 Project Structure
 
 ```text
