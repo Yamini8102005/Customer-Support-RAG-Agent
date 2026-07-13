@@ -1,19 +1,18 @@
 import os
+import re
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 from langchain_community.vectorstores import FAISS
-from langchain_core.embeddings import Embeddings
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain_community.embeddings import HuggingFaceEmbeddings
 
-# Use Google API-based embeddings when available; otherwise fall back to a local model.
-EMBEDDING_MODEL_NAME = os.getenv("GEMINI_EMBEDDING_MODEL", "text-embedding-004")
+EMBEDDING_MODEL_NAME = os.getenv(
+    "GEMINI_EMBEDDING_MODEL",
+    "models/gemini-embedding-001"
+)
 LLM_MODEL_NAME = os.getenv("GEMINI_LLM_MODEL", "gemini-2.0-flash")
-LOCAL_EMBEDDING_MODEL = os.getenv("LOCAL_EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
-EMBEDDING_BACKEND = os.getenv("EMBEDDING_BACKEND", "auto")
 
 
 def get_google_api_key() -> str:
@@ -24,50 +23,13 @@ def get_google_api_key() -> str:
     return api_key
 
 
-class FallbackEmbeddings(Embeddings):
-    """Use Google embeddings when available and fall back to a local model on failure."""
-
-    def __init__(self):
-        self._google_embeddings = None
-        self._local_embeddings = None
-
-    def _get_google_embeddings(self):
-        if self._google_embeddings is None:
-            self._google_embeddings = GoogleGenerativeAIEmbeddings(
-                model=EMBEDDING_MODEL_NAME,
-                google_api_key=get_google_api_key(),
-            )
-        return self._google_embeddings
-
-    def _get_local_embeddings(self):
-        if self._local_embeddings is None:
-            self._local_embeddings = HuggingFaceEmbeddings(model_name=LOCAL_EMBEDDING_MODEL)
-        return self._local_embeddings
-
-    def embed_documents(self, texts, **kwargs):
-        if EMBEDDING_BACKEND.lower() == "local":
-            return self._get_local_embeddings().embed_documents(texts, **kwargs)
-
-        try:
-            return self._get_google_embeddings().embed_documents(texts, **kwargs)
-        except Exception as exc:
-            print(f"Google embeddings failed during document embedding, falling back to local embeddings: {exc}")
-            return self._get_local_embeddings().embed_documents(texts, **kwargs)
-
-    def embed_query(self, text, **kwargs):
-        if EMBEDDING_BACKEND.lower() == "local":
-            return self._get_local_embeddings().embed_query(text, **kwargs)
-
-        try:
-            return self._get_google_embeddings().embed_query(text, **kwargs)
-        except Exception as exc:
-            print(f"Google embeddings failed during query embedding, falling back to local embeddings: {exc}")
-            return self._get_local_embeddings().embed_query(text, **kwargs)
-
-
 def get_embeddings():
-    """Create embedding object with automatic Google-to-local fallback."""
-    return FallbackEmbeddings()
+    """Create Google Generative AI embeddings using only GoogleGenerativeAIEmbeddings."""
+    return GoogleGenerativeAIEmbeddings(
+        model=EMBEDDING_MODEL_NAME,
+        google_api_key=get_google_api_key(),
+    )
+
 
 def initialize_vector_store(pdf_path: str, store_path: str):
     """
@@ -98,6 +60,7 @@ def initialize_vector_store(pdf_path: str, store_path: str):
     vector_store.save_local(store_path)
     return vector_store
 
+
 def load_vector_store(store_path: str):
     """
     Loads the persistent FAISS vector store from disk.
@@ -108,10 +71,32 @@ def load_vector_store(store_path: str):
 
 def get_fallback_answer(vector_store, user_input: str, chat_history=None):
     """Return a local FAQ-based answer when the Gemini API is unavailable."""
-    docs = vector_store.similarity_search(user_input, k=3)
-    if docs:
+    try:
+        # Get all documents from the FAISS internal docstore
+        all_docs = list(vector_store.docstore._dict.values())
+    except Exception:
+        all_docs = []
+
+    if all_docs:
+        # Preprocess query: tokenize, lower-case, remove non-alphanumeric
+        query_words = set(re.findall(r'\w+', user_input.lower()))
+        
+        # Score each document by word overlap
+        scored_docs = []
+        for doc in all_docs:
+            doc_words = re.findall(r'\w+', doc.page_content.lower())
+            overlap_count = sum(1 for word in query_words if word in doc_words)
+            scored_docs.append((overlap_count, doc))
+        
+        # Sort documents by score descending, keeping only those with at least 1 match
+        scored_docs.sort(key=lambda x: x[0], reverse=True)
+        top_docs = [doc for score, doc in scored_docs if score > 0][:3]
+    else:
+        top_docs = []
+
+    if top_docs:
         snippets = []
-        for idx, doc in enumerate(docs, 1):
+        for idx, doc in enumerate(top_docs, 1):
             excerpt = " ".join(doc.page_content.split())
             snippets.append(f"{idx}. {excerpt[:700]}")
         answer = (
@@ -119,7 +104,7 @@ def get_fallback_answer(vector_store, user_input: str, chat_history=None):
             "Relevant information:\n"
             + "\n\n".join(snippets)
         )
-        return {"answer": answer, "context": docs}
+        return {"answer": answer, "context": top_docs}
 
     return {
         "answer": "The Gemini API is currently unavailable or rate-limited. Please try again shortly or check your API quota.",
