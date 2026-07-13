@@ -20,6 +20,11 @@ def get_google_api_key() -> str:
     api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("Google API key is missing. Set GOOGLE_API_KEY or GEMINI_API_KEY in your environment.")
+    # Ensure both environment variables are set in os.environ for compatibility with downstream libraries
+    if not os.getenv("GOOGLE_API_KEY"):
+        os.environ["GOOGLE_API_KEY"] = api_key
+    if not os.getenv("GEMINI_API_KEY"):
+        os.environ["GEMINI_API_KEY"] = api_key
     return api_key
 
 

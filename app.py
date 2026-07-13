@@ -58,7 +58,19 @@ VECTOR_STORE_DIR = "vector_store"
 # BOOTSTRAPPING & SETUP
 # ==========================================
 
-# 1. Check & Generate FAQ PDF
+# 1. Check Google Gemini API Key configuration
+api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+if not api_key:
+    st.error("⚠️ Google API key is missing! Please set GOOGLE_API_KEY or GEMINI_API_KEY in your Render environment variables or .env file.")
+    st.stop()
+
+# Ensure both environment variables are set in os.environ for compatibility with langchain-google-genai
+if not os.getenv("GOOGLE_API_KEY"):
+    os.environ["GOOGLE_API_KEY"] = api_key
+if not os.getenv("GEMINI_API_KEY"):
+    os.environ["GEMINI_API_KEY"] = api_key
+
+# 2. Check & Generate FAQ PDF
 if not os.path.exists(PDF_PATH):
     st.info("🔄 First Launch: Generating GigaCorp FAQ PDF document...")
     try:
@@ -68,7 +80,7 @@ if not os.path.exists(PDF_PATH):
         st.error(f"Failed to generate FAQ PDF: {e}")
         st.stop()
 
-# 2. Check & Initialize Vector Store
+# 3. Check & Initialize Vector Store
 if not os.path.exists(VECTOR_STORE_DIR) or not os.path.exists(os.path.join(VECTOR_STORE_DIR, "index.faiss")):
     with st.spinner("🔄 Building local FAISS Vector database..."):
         try:
@@ -84,18 +96,17 @@ def get_rag_chain_and_store():
     """
     Loads the persistent vector store and returns the LangChain retrieval chain.
     """
-    # Check if a Google API key is configured
-    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        st.error("⚠️ Google API key is missing! Please set GOOGLE_API_KEY or GEMINI_API_KEY in your .env file.")
-        st.stop()
-        
     try:
         vector_store = rag_pipeline.load_vector_store(VECTOR_STORE_DIR)
         return rag_pipeline.get_conversational_chain(vector_store), vector_store
     except Exception as e:
-        st.error(f"Error loading FAISS vector database: {e}")
-        st.stop()
+        st.warning(f"⚠️ Failed to load persistent vector store: {e}. Attempting to rebuild and persist index...")
+        try:
+            vector_store = rag_pipeline.initialize_vector_store(PDF_PATH, VECTOR_STORE_DIR)
+            return rag_pipeline.get_conversational_chain(vector_store), vector_store
+        except Exception as rebuild_error:
+            st.error(f"❌ Failed to rebuild and load FAISS Vector Store: {rebuild_error}")
+            st.stop()
 
 # Load the RAG Chain and vector store
 rag_chain, vector_store = get_rag_chain_and_store()
