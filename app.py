@@ -1,7 +1,10 @@
 import os
 import sys
-import streamlit as st
 from dotenv import load_dotenv
+# Load environment variables (.env file)
+load_dotenv()
+
+import streamlit as st
 from langchain_core.messages import HumanMessage, AIMessage
 
 # Add current directory to path to ensure imports work correctly
@@ -9,9 +12,6 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 import rag_pipeline
 import generate_faq_pdf
-
-# Load environment variables (.env file)
-load_dotenv()
 
 # Streamlit Page Configuration
 st.set_page_config(
@@ -98,9 +98,28 @@ def get_rag_chain_and_store():
     """
     try:
         vector_store = rag_pipeline.load_vector_store(VECTOR_STORE_DIR)
+        
+        # Verify the dimensions match the current embedding model to prevent downstream AssertionError
+        embeddings = rag_pipeline.get_embeddings()
+        sample_vector = embeddings.embed_query("test")
+        if vector_store.index.d != len(sample_vector):
+            raise ValueError(
+                f"Vector store dimension mismatch: loaded index has {vector_store.index.d} dimensions, "
+                f"but current embedding model requires {len(sample_vector)} dimensions."
+            )
+            
         return rag_pipeline.get_conversational_chain(vector_store), vector_store
     except Exception as e:
         st.warning(f"⚠️ Failed to load persistent vector store: {e}. Attempting to rebuild and persist index...")
+        
+        # Safely remove incompatible or corrupted files before rebuilding
+        try:
+            import shutil
+            if os.path.exists(VECTOR_STORE_DIR):
+                shutil.rmtree(VECTOR_STORE_DIR, ignore_errors=True)
+        except Exception as delete_error:
+            st.warning(f"Could not delete vector store directory: {delete_error}")
+            
         try:
             vector_store = rag_pipeline.initialize_vector_store(PDF_PATH, VECTOR_STORE_DIR)
             return rag_pipeline.get_conversational_chain(vector_store), vector_store
@@ -207,7 +226,11 @@ if user_input := st.chat_input("Type your question here..."):
                     st.info("The Gemini API is temporarily unavailable, so I’m using the local FAQ fallback.")
                     response = rag_pipeline.get_fallback_answer(vector_store, user_input, chat_history)
                 else:
+                    import traceback
+                    traceback.print_exc()
                     st.error(f"An error occurred while communicating with the model: {e}")
+                    with st.expander("🔍 View Technical Details / Traceback", expanded=False):
+                        st.code(traceback.format_exc())
                     st.info("Please make sure you have set a valid GOOGLE_API_KEY or GEMINI_API_KEY in your .env file and that the selected Gemini model is supported.")
                     st.stop()
             

@@ -1,5 +1,8 @@
 import os
 import re
+from dotenv import load_dotenv
+load_dotenv()
+
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
@@ -12,7 +15,7 @@ EMBEDDING_MODEL_NAME = os.getenv(
     "GEMINI_EMBEDDING_MODEL",
     "models/gemini-embedding-001"
 )
-LLM_MODEL_NAME = os.getenv("GEMINI_LLM_MODEL", "gemini-2.0-flash")
+LLM_MODEL_NAME = os.getenv("GEMINI_LLM_MODEL", "gemini-3.1-flash-lite")
 
 
 def get_google_api_key() -> str:
